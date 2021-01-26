@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import ARGAN
 
-img_path = 'c:/users/BKL/Desktop/KU/4/ISTD_Dataset/train'
-test_path = 'c:/users/BKL/Desktop/KU/4/ISTD_Dataset/test'
+img_path = 'D:/BKD/U/4_Project/ISTD_Dataset/train'
+test_path = 'c:/BKD/U/4_Project/ISTD_Dataset/test'
 
 
 # display image
@@ -42,9 +42,9 @@ print(images.shape)
 print(mattes.shape)
 print(frees.shape)
 
-#imshow(torchvision.utils.make_grid(images, nrow=dprow))
-#imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
-#imshow(torchvision.utils.make_grid(frees, nrow=dprow))
+imshow(torchvision.utils.make_grid(images, nrow=dprow))
+imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
+imshow(torchvision.utils.make_grid(frees, nrow=dprow))
 
 
 ###################################
