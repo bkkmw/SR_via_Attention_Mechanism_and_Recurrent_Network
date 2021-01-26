@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import ARGAN
 
-img_path = 'D:/BKD/U/4_Project/ISTD_Dataset/train'
-test_path = 'c:/BKD/U/4_Project/ISTD_Dataset/test'
-
+# BKD
+img_path = 'D:/BKD/U/4_Project/ISTD_Dataset/train/'
+test_path = 'D:/BKD/U/4_Project/ISTD_Dataset/test/'
+# BKL
 
 # display image
 def imshow(image):

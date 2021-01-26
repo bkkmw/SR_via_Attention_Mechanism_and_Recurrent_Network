@@ -210,20 +210,20 @@ class Gen(nn.Module):
         print('feature size : ', x.shape)
         #for i in range(self.batch_size):
         #    x[i], self.hidden[i] = self.lstm(x[i], self.hidden[i])
-        #x, self.hidden = self.lstm(x, h)
+        x, self.hidden = self.lstm(x, h)
 
         # Attention map
         matt = self.att_map(x)
 
         # Removal Encoder
         x0 = self.conv0(x)
-        x1 = self.conv1(xx)
-        x2 = self.conv2(xx)
-        x3 = self.conv3(xx)
-        x4 = self.conv4(xx)
-        x5 = self.conv5(xx)
-        x6 = self.conv6(xx)
-        x7 = self.conv7(xx)
+        x1 = self.conv1(x0)
+        x2 = self.conv2(x1)
+        x3 = self.conv3(x2)
+        x4 = self.conv4(x3)
+        x5 = self.conv5(x4)
+        x6 = self.conv6(x5)
+        x7 = self.conv7(x6)
 
         xx = self.dconv0(x7)
         xx = self.dconv1(xx + x6)
