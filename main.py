@@ -3,6 +3,7 @@ import torchvision
 import matplotlib.pyplot as plt
 import numpy as np
 import ARGAN
+import data_loader
 
 # BKD
 img_path = 'D:/BKD/U/4_Project/ISTD_Dataset/train/'
@@ -22,12 +23,12 @@ def imshow(image):
 batch_num = 4
 dprow = 2
 
-train_img = ARGAN.ARGAN_Dataset(img_path, src_trans=ARGAN.img2tensor,
-                               matt_trans=ARGAN.matt2tensor, is_test=False)
+train_img = data_loader.ARGAN_Dataset(img_path, src_trans=data_loader.img2tensor,
+                               matt_trans=data_loader.matt2tensor, is_test=False)
 trainloader = torch.utils.data.DataLoader(train_img, batch_size=batch_num, shuffle=True)
 
-test_img = ARGAN.ARGAN_Dataset(test_path, src_trans=ARGAN.img2tensor,
-                               matt_trans=ARGAN.matt2tensor, is_test=True)
+test_img = data_loader.ARGAN_Dataset(test_path, src_trans=data_loader.img2tensor,
+                               matt_trans=data_loader.matt2tensor, is_test=True)
 testloader = torch.utils.data.DataLoader(test_img, batch_size=batch_num, shuffle=True)
 
 
@@ -52,9 +53,6 @@ imshow(torchvision.utils.make_grid(frees, nrow=dprow))
 gen_net = ARGAN.Gen(batch_size=batch_num)
 
 gen_net.train()
-
-
-
 
 for epoch in range(2):
     running_loss = 0.0

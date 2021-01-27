@@ -2,107 +2,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-import os
-
-
-
-# My dataset loading function
-def make_dataset(root, test) -> list:
-    dataset = []
-    # sub folder names of data set
-    if test is True:
-        src_dir = 'test_A'
-        matt_dir = 'test_B'
-        free_dir = 'test_C'
-    else:
-        src_dir = 'train_A'
-        matt_dir = 'train_B'
-        free_dir = 'train_C'
-
-    # file names of dataset
-    src_fnames = sorted(os.listdir(os.path.join(root, src_dir)))
-    matt_fnames = sorted(os.listdir(os.path.join(root, matt_dir)))
-    free_fnames = sorted(os.listdir(os.path.join(root, free_dir)))
-
-    # matching datasets by name
-    # same fname for triplets
-    for src_fname in src_fnames:
-        # source image (image with shadow)
-        src_path = os.path.join(root, src_dir, src_fname)
-        if src_fname in matt_fnames:
-            # shadow matte image
-            matt_path = os.path.join(root, matt_dir, src_fname)
-            if src_fname in free_fnames:
-                # shadow free image
-                free_path = os.path.join(root, free_dir, src_fname)
-                # if triplets exists append to dataset
-                temp = (src_path, matt_path, free_path)
-                dataset.append(temp)
-            # if one of triplets missing do NOT append to dataset
-            else:
-                print(free_fname, 'Shadow free file missing')
-                continue
-        else:
-            print(matt_fname, 'Shadow matte file missing')
-            continue
-
-    return dataset
-
-
-class ARGAN_Dataset(torchvision.datasets.vision.VisionDataset):
-    # ARGAN dataset class composed of 3 func
-    def __init__(self, root, loader=torchvision.datasets.folder.default_loader,
-                 is_test=False, src_trans=None, matt_trans=None):
-        super().__init__(root, transform=src_trans, target_transform=matt_trans)
-
-        # Custom dataset loader for Training
-        samples = make_dataset(self.root, test=is_test)
-        self.loader = loader
-        self.samples = samples
-        # train data list
-
-    #    self.src_samples = [s[0] for s in samples]
-    #    self.matt_samples = [s[1] for s in samples]
-    #    self.free_samples = [s[2] for s in samples]
-
-    # Get single data
-    def __getitem__(self, index):
-        # load training data
-        src_path, matt_path, free_path = self.samples[index]
-        src_sample = self.loader(src_path)
-        matt_sample = self.loader(matt_path)
-        free_sample = self.loader(free_path)
-
-        # transform data if required
-        if self.transform is not None:
-            # transform for RGB image : Shadow image and Shadow free image
-            src_sample = self.transform(src_sample)
-            free_sample = self.transform(free_sample)
-        if self.target_transform is not None:
-            # transform for Binary image : Shaode Matte
-            matt_sample = self.target_transform(matt_sample)
-
-        return src_sample, matt_sample, free_sample
-
-    # Get dataset length
-    def __len__(self):
-        return len(self.samples)
-
-
-# image Transforms
-# image size 256x256 used for training _ from paper
-img2tensor = transforms.Compose([
-                                 transforms.Resize(size=(256,256)),
-                                 transforms.ToTensor()
-                                 # additional tasks
-])
-matt2tensor = transforms.Compose([
-                                  transforms.Resize(size=(256,256)),
-                                  transforms.Grayscale(1),
-                                  transforms.ToTensor()
-                                  # additional tasks
-
-])
+from Conv_LSTM import ConvLSTM as CLSTM
 
 
 #NETWORK_ GEN
@@ -133,7 +33,9 @@ class Gen(nn.Module):
                                   nn.BatchNorm2d(64), nn.LeakyReLU())
         self.det9 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
                                   nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.lstm = nn.LSTM(input_size=256, hidden_size=256, num_layers=3)
+        #self.lstm = nn.LSTM(input_size=256*256, hidden_size=256)
+        self.lstm = CLSTM(input_dim=64, hidden_dim=[64,64,128], kernel_size=(3,3),
+                          num_layers=3, batch_first=True, bias=True, return_all_layers=False)
         #self.lstm_c = nn.LSTMCell(input_size=64, hidden_size=64, )
         # hidden layers for LSTM
         self.hidden = self.init_h(batch_size)
@@ -186,11 +88,10 @@ class Gen(nn.Module):
         self.rem2 = nn.Sequential(nn.Conv2d(3,1, kernel_size=3, stride=1, padding=1),
                                   nn.Sigmoid())
 
-
     # init hidden layers of LSTM : all zeros
     def init_h(self, batch_size):
-        return (torch.zeros(batch_size, 64, 256, 256))
-
+        return (torch.zeros(batch_size, 1, 64, 256),
+                torch.zeros(batch_size, 1, 64, 256))
 
     def forward(self, inp, h):
         # Attention detector
@@ -206,12 +107,10 @@ class Gen(nn.Module):
         x = self.det9(x)
         # LSTM
 
-        print(h.shape)
-        print('feature size : ', x.shape)
-        #for i in range(self.batch_size):
-        #    x[i], self.hidden[i] = self.lstm(x[i], self.hidden[i])
-        x, self.hidden = self.lstm(x, h)
-
+        #print(h.shape)
+        #print('feature size : ', x.view([self.batch_size,64,-1]).shape)
+#        x, self.hidden = self.lstm(x.view([self.batch_size,64,-1]), h)
+        x, self.hidden = self.lstm(x)
         # Attention map
         matt = self.att_map(x)
 
