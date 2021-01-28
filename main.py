@@ -11,6 +11,9 @@ from torchsummary import summary
 img_path = 'D:/BKD/U/4_Project/ISTD_Dataset/train/'
 test_path = 'D:/BKD/U/4_Project/ISTD_Dataset/test/'
 # BKL
+img_path = 'c:/users/BKL/Desktop/KU/4/ISTD_Dataset/train'
+test_path = 'c:/users/BKL/Desktop/KU/4/ISTD_Dataset/test'
+
 
 # display image
 def imshow(image):
