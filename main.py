@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import ARGAN
 import data_loader
+import AGAN
+from torchsummary import summary
 
 # BKD
 img_path = 'D:/BKD/U/4_Project/ISTD_Dataset/train/'
@@ -14,7 +16,7 @@ test_path = 'D:/BKD/U/4_Project/ISTD_Dataset/test/'
 def imshow(image):
 #  image = image/2 + 0.5
   # numpy
-  npimage = image.numpy()
+  npimage = image.detach().numpy()
   plt.imshow(np.transpose(npimage, (1,2,0)))
   plt.show()
 
@@ -44,23 +46,33 @@ print(images.shape)
 print(mattes.shape)
 print(frees.shape)
 
-imshow(torchvision.utils.make_grid(images, nrow=dprow))
-imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
-imshow(torchvision.utils.make_grid(frees, nrow=dprow))
+#imshow(torchvision.utils.make_grid(images, nrow=dprow))
+#imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
+#imshow(torchvision.utils.make_grid(frees, nrow=dprow))
 
 
 ###################################
-gen_net = ARGAN.Gen(batch_size=batch_num)
+gen_net = AGAN.Gen(batch_size=batch_num, step_num=3)
 
 gen_net.train()
 
-for epoch in range(2):
+num_params = sum(p.numel() for p in gen_net.parameters() if p.requires_grad)
+print('Number of parameters : %d' %(num_params) )
+
+#summary(gen_net, (3,256,256), batch_size=4)
+
+
+
+for epoch in range(1):
     running_loss = 0.0
 
     for i, datas in enumerate(trainloader, 0):
         images, mattes, frees = datas
-
-        matt, free, h = gen_net(images, gen_net.hidden)
-        imshow(images)
-        imshow(matt)
-        imshow(free)
+        matt, free = gen_net(images)
+        print(images.shape)
+        print(matt.shape)
+        print(free.shape)
+        imshow(torchvision.utils.make_grid(images, nrow=dprow))
+        imshow(torchvision.utils.make_grid(matt[0], nrow=dprow))
+        imshow(torchvision.utils.make_grid(free[0], nrow=dprow))
+        

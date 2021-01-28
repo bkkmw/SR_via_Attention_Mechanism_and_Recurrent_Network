@@ -1,5 +1,5 @@
 """
-modified from https://github.com/ndrplz/ConvLSTM_pytorch
+imported from https://github.com/ndrplz/ConvLSTM_pytorch
 """
 
 import torch.nn as nn

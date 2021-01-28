@@ -2,6 +2,7 @@ import torchvision
 import torchvision.transforms as transforms
 import os
 
+
 # My dataset loading function
 def make_dataset(root, test) -> list:
     dataset = []
