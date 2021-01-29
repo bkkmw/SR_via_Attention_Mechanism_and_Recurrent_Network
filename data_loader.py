@@ -1,3 +1,4 @@
+import torch
 import torchvision
 import torchvision.transforms as transforms
 import os
@@ -100,3 +101,15 @@ matt2tensor = transforms.Compose([
                                   # additional tasks
 
 ])
+
+
+def get_data(data_type, data_path, batch_size):
+    if data_type is 'train':
+        img = ARGAN_Dataset(data_path, src_trans=img2tensor,
+                            matt_trans=matt2tensor, is_test=False)
+    elif data_type is 'test':
+        img = ARGAN_Dataset(data_path, src_trans=img2tensor,
+                            matt_trans=matt2tensor, is_test=True)
+    loader = torch.utils.data.DataLoader(img, batch_size=batch_size, shuffle=True)
+    return loader
+

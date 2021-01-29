@@ -187,6 +187,19 @@ class Gen(nn.Module):
 class Disc(nn.Module):
     def __init__(self):
         super(Disc, self).__init__()
+        self.conv0 = ConvL(3, 64, 4, 2, 1)
+        self.conv1 = ConvL(64, 128, 4, 2, 1)
+        self.conv2 = ConvL(128, 256, 4, 2, 1)
+        self.conv3 = ConvL(256, 512, 4, 2, 1)
+        self.conv4 = ConvL(512, 512, 4, 2, 1)
+        self.fc = nn.Linear(512, 1)
 
-    def forward(self):
-        None
+    def forward(self, inp):
+        x = self.conv0(inp)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        out = torch.sigmoid(self.fc(x))
+
+        return x

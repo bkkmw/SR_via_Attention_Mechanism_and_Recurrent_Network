@@ -1,11 +1,11 @@
 import torch
 import torchvision
-import matplotlib.pyplot as plt
-import numpy as np
 import ARGAN
 import data_loader
 import AGAN
 from torchsummary import summary
+import def_func as ff
+
 
 # BKD
 img_path = 'D:/BKD/U/4_Project/ISTD_Dataset/train/'
@@ -15,19 +15,10 @@ img_path = 'c:/users/BKL/Desktop/KU/4/ISTD_Dataset/train'
 test_path = 'c:/users/BKL/Desktop/KU/4/ISTD_Dataset/test'
 
 
-# display image
-def imshow(image):
-#  image = image/2 + 0.5
-  # numpy
-  npimage = image.detach().numpy()
-  plt.imshow(np.transpose(npimage, (1,2,0)))
-  plt.show()
-
-
 # Load images
 batch_num = 4
 dprow = 2
-
+"""
 train_img = data_loader.ARGAN_Dataset(img_path, src_trans=data_loader.img2tensor,
                                matt_trans=data_loader.matt2tensor, is_test=False)
 trainloader = torch.utils.data.DataLoader(train_img, batch_size=batch_num, shuffle=True)
@@ -35,10 +26,12 @@ trainloader = torch.utils.data.DataLoader(train_img, batch_size=batch_num, shuff
 test_img = data_loader.ARGAN_Dataset(test_path, src_trans=data_loader.img2tensor,
                                matt_trans=data_loader.matt2tensor, is_test=True)
 testloader = torch.utils.data.DataLoader(test_img, batch_size=batch_num, shuffle=True)
+"""
 
+trainloader = data_loader.get_data('train', img_path, batch_num)
 
 ############# DATA Display ############
-print(train_img)
+#print(train_img)
 
 #for i, (src,matt) in enumerate(trainloader):
 dataiter = iter(trainloader)
@@ -49,9 +42,9 @@ print(images.shape)
 print(mattes.shape)
 print(frees.shape)
 
-#imshow(torchvision.utils.make_grid(images, nrow=dprow))
-#imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
-#imshow(torchvision.utils.make_grid(frees, nrow=dprow))
+ff.imshow(torchvision.utils.make_grid(images, nrow=dprow))
+ff.imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
+ff.imshow(torchvision.utils.make_grid(frees, nrow=dprow))
 
 
 ###################################
