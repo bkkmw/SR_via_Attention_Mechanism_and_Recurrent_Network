@@ -42,13 +42,22 @@ print(images.shape)
 print(mattes.shape)
 print(frees.shape)
 
+"""
 ff.imshow(torchvision.utils.make_grid(images, nrow=dprow))
 ff.imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
 ff.imshow(torchvision.utils.make_grid(frees, nrow=dprow))
-
+"""
 
 ###################################
-gen_net = AGAN.Gen(batch_size=batch_num, step_num=3)
+steps = 3
+
+gen_net = AGAN.Gen(batch_size=batch_num, step_num=steps)
+dis_net = AGAN.Disc()
+
+MSE = torch.nn.MSELoss()
+vgg = torchvision.models.vgg16(pretrained=True, progress=False)
+
+gen_optim = torch.optim.SGD(gen_net.parameters(), lr=0.002, momentum=0.5)
 
 gen_net.train()
 
@@ -60,15 +69,33 @@ print('Number of parameters : %d' %(num_params) )
 
 
 for epoch in range(1):
-    running_loss = 0.0
+    total_loss = 0.0
+    det_loss = 0.0
+    rem_loss = 0.0
+    adv_loss = 0.0
 
     for i, datas in enumerate(trainloader, 0):
         images, mattes, frees = datas
         matt, free = gen_net(images)
+        """
         print(images.shape)
         print(matt.shape)
         print(free.shape)
         imshow(torchvision.utils.make_grid(images, nrow=dprow))
         imshow(torchvision.utils.make_grid(matt[0], nrow=dprow))
         imshow(torchvision.utils.make_grid(free[0], nrow=dprow))
-        
+        """
+
+        for n in range(steps):
+            det_loss += MSE(mattes, matt[n])
+            rem_loss += MSE(frees, free[n])
+            # + pretrained VGG
+            rem_loss += MSE(vgg(frees), vgg(free[n]))
+
+        total_loss = det_loss + rem_loss
+        print('%dth batch loss : %f' % (i, total_loss))
+        with torch.autograd.set_detect_anomaly(True):
+
+            total_loss.backward()
+            gen_optim.step()
+            print('Gradient updated')

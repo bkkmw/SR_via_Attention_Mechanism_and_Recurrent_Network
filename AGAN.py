@@ -23,8 +23,7 @@ class ConvL(nn.Module):
                                   nn.BatchNorm2d(out_ch), nn.LeakyReLU())
 
     def forward(self, inp):
-        x = self.conv(inp)
-        return x
+        return self.conv(inp)
 
 
 class DConvL(nn.Module):
@@ -56,8 +55,8 @@ class AttDet(nn.Module):
         )
 
     def forward(self, inp):
-        x = self.block(inp)
-        return x
+        return self.block(inp)
+
 
 
 class REncoder(nn.Module):
@@ -123,13 +122,13 @@ class Gen(nn.Module):
         super(Gen, self).__init__()
         self.batch_size = batch_size
         self.step = step_num
-        self.attL = []
-        self.attM = []
-        self.remE = []
+        attL = []
+        attM = []
+        remE = []
         # shadow attention detector
         for i in range(self.step):
-            self.attL.append(AttDet())
-            self.attM.append(nn.Sequential(nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1),
+            attL.append(AttDet())
+            attM.append(nn.Sequential(nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1),
                                      nn.Sigmoid()))
         # Convolutional LSTM layer
         self.lstm = CLSTM(input_dim=64, hidden_dim=64, kernel_size=(3, 3),
@@ -137,50 +136,56 @@ class Gen(nn.Module):
                           bias=True, return_all_layers=False)
         # shadow removal encoder
         for i in range(self.step):
-            self.remE.append(REncoder())
+            remE.append(REncoder())
+        self.attL = nn.ModuleList(attL)
+        self.attM = nn.ModuleList(attM)
+        self.remE = nn.ModuleList(remE)
+
 
     def forward(self, inp):
-        print('input data size : ', inp.shape)
+        with torch.autograd.set_detect_anomaly(True):
 
-        att_map = torch.empty(self.step, self.batch_size, 1, 256, 256)
-        out = torch.empty(self.step, self.batch_size, 3, 256, 256)
+            print('input data size : ', inp.shape)
 
-        for i in range(self.step):
-            # attention detector
-            if i == 0:
-                x = inp
-            else:
-                x = out[i-1]
-            print("%d th step input image : " %(i+1), x.shape)
-            lstm_in = self.attL[i](x)
-            print("extracted feature : ", lstm_in.shape)
-            '''
-            lstm_out, h = self.lstm(lstm_in)
-            print("output of LSTM layer : ", lstm_out.shape)
-            temp = self.attM[i](lstm_out)
-            '''
-            temp = self.attM[i](lstm_in)
-            print("temp attemtion map : ", temp.shape)
-            # removal encoder
-            res = self.remE[i](x, temp)
-            print("output image : ", res.shape)
+            att_map = torch.empty(self.step, self.batch_size, 1, 256, 256)
+            out = torch.empty(self.step, self.batch_size, 3, 256, 256)
 
-            att_map[i] = temp
-            out[i] = res
-            """
-            if i == 0:
-                att_map = temp
-                out = res
-            else:
-                att_map = torch.stack([att_map, temp])
-                out = torch.stack([out, res])
-            """
+            for i in range(self.step):
+                # attention detector
+                if i == 0:
+                    x = inp
+                else:
+                    x = out[i-1]
+                print("%d th step input image : " %(i+1), x.shape)
+                lstm_in = self.attL[i](x)
+                print("extracted feature : ", lstm_in.shape)
+                '''
+                lstm_out, h = self.lstm(lstm_in)
+                print("output of LSTM layer : ", lstm_out.shape)
+                temp = self.attM[i](lstm_out)
+                '''
+                temp = self.attM[i](lstm_in)
+                print("temp attemtion map : ", temp.shape)
+                # removal encoder
+                res = self.remE[i](x, temp)
+                print("output image : ", res.shape)
 
-        att_map = torch.FloatTensor(att_map)
-        out = torch.FloatTensor(out)
-        print('Final output : ', att_map.shape, out.shape)
+                att_map[i] = temp
+                out[i] = res
+                """
+                if i == 0:
+                    att_map = temp
+                    out = res
+                else:
+                    att_map = torch.stack([att_map, temp])
+                    out = torch.stack([out, res])
+                """
 
-        return att_map, out
+            att_map = torch.FloatTensor(att_map)
+            out = torch.FloatTensor(out)
+            print('Final output : ', att_map.shape, out.shape)
+
+            return att_map, out
 
 
 # Discriminator
