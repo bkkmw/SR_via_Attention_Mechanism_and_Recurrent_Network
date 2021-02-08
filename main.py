@@ -5,6 +5,10 @@ import AGAN
 from torchsummary import summary
 import def_func as ff
 import os
+import numpy as np
+from PIL import Image
+
+
 
 # Directories
 # BKD
@@ -22,7 +26,8 @@ trainloader = data_loader.get_data('train', img_path, batch_num)
 dataiter = iter(trainloader)
 images, mattes, frees = dataiter.next()
 
-
+ttt = torchvision.utils.make_grid(images, nrow=dprow)
+print(ttt.shape)
 ff.imshow(torchvision.utils.make_grid(images, nrow=dprow))
 ff.imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
 ff.imshow(torchvision.utils.make_grid(frees, nrow=dprow))
@@ -31,14 +36,14 @@ ff.imshow(torchvision.utils.make_grid(frees, nrow=dprow))
 steps = 3   # Number of progressive step
 beta = 0.7  # weight for MSE loss of each step
 lamb = 0.7  # weight for Semi-Superviesd learning
-l_rate = 0.002  # learning rate
+l_rate = 0.0002  # learning rate
 dis_steps = 120 # training Discriminator
 num_epoch = 5
 
 gen_net = AGAN.Gen(batch_size=batch_num, step_num=steps)
 dis_net = AGAN.Disc(batch_size=batch_num)
 # Model Summary
-summary(gen_net, (3,128,128))
+#summary(gen_net, (3,128,128))
 summary(dis_net, (3,128,128))
 
 # Loss function
@@ -49,18 +54,24 @@ ADV = torch.nn.BCELoss()
 gen_optim = torch.optim.SGD(gen_net.parameters(), lr=l_rate, momentum=0.5)
 dis_optim = torch.optim.Adam(dis_net.parameters(), lr=l_rate)
 
+
+"""
 # Load model parameters
 if os.path.isfile('gen_net.pth'):
     gen_net.load_state_dict(torch.load('gen_net.pth'))
 if os.path.isfile('dis_net.pth'):
     dis_net.load_state_dict(torch.load('dis_net.pth'))
-
+"""
 gen_net.train()
 dis_net.train()
 
+
+
 for epoch in range(num_epoch):
-    print('===========%d epoch running==========' %(epoch))
-    batch_err = 0.0
+    print('===========%d epoch running==========' %(epoch+1))
+    batch_err_a = 0.0
+    batch_err_d = 0.0
+    batch_err_r = 0.0
 
     for i, datas in enumerate(trainloader):
         total_loss = 0.0
@@ -72,18 +83,30 @@ for epoch in range(num_epoch):
 
         matt, free = gen_net(images)
 
+        break
+
         if i<dis_steps:
-            real_err = ADV(dis_net(frees), torch.ones(frees.shape[0],1))
+            real_est = dis_net(frees)
+            real_label = torch.ones(frees.shape[0],1)
+            real_err = ADV(real_est, real_label)
             real_err.backward()
-            fake_err = ADV(dis_net(free[steps-1]),
-                                   torch.zeros(free[steps-1].shape[0],1))
+
+            fake_est = dis_net(free[steps-1])
+            fake_label = torch.zeros(free[steps-1].shape[0],1)
+            fake_err = ADV(fake_est, fake_label)
             fake_err.backward()
 
             dis_err = real_err + fake_err
             dis_optim.step()
             dis_optim.zero_grad()
 
-            batch_err += dis_err
+            batch_err_a += dis_err
+
+            if i % 10 ==9:
+                print("[%d batch]\ttotal loss : %f"
+                      %(i+1, batch_err_a))
+                batch_err = 0.0
+
 
         else:
             for n in range(steps):
@@ -98,7 +121,25 @@ for epoch in range(num_epoch):
             gen_optim.step()
             gen_optim.zero_grad()
 
-            batch_err += total_loss
+            batch_err_a += adv_loss
+            batch_err_d += det_loss
+            batch_err_r += rem_loss
 
-        torch.save(gen_net.state_dict(), 'gen_net.pth')
-        torch.save(dis_net.state_dict(), 'dis_net.pth')
+            if i % 10 == 9:
+                print("[%d batch]\tdet : %f, rem : %f, adv : %f"
+                      %(i+1, batch_err_d, batch_err_r, batch_err_a))
+
+    # 1 epoch Finished
+    torch.save(gen_net.state_dict(), 'gen_net.pth')
+    torch.save(dis_net.state_dict(), 'dis_net.pth')
+    print("%d epoch params saved" %(epoch+1))
+
+    SAVE_PATH = 'C:/Users/BKL/Desktop/KU/4/Out/'
+
+    img_fname = SAVE_PATH + str(epoch) + "_img.jpg"
+    mat_fname = SAVE_PATH + str(epoch) + "_matt.jpg"
+    fre_fname = SAVE_PATH + str(epoch) + "_free.jpg"
+
+    ff.save_batch(images, dprow, img_fname)
+    ff.save_batch(matt[steps-1], dprow, mat_fname)
+    ff.save_batch(free[steps-1], dprow, fre_fname)
