@@ -8,3 +8,4 @@ def imshow(image):
   npimage = image.detach().numpy()
   plt.imshow(np.transpose(npimage, (1,2,0)))
   plt.show()
+

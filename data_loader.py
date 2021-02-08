@@ -90,12 +90,12 @@ class ARGAN_Dataset(torchvision.datasets.vision.VisionDataset):
 # image Transforms
 # image size 256x256 used for training _ from paper
 img2tensor = transforms.Compose([
-                                 transforms.Resize(size=(256,256)),
+                                 transforms.Resize(size=(128,128)),
                                  transforms.ToTensor()
                                  # additional tasks
 ])
 matt2tensor = transforms.Compose([
-                                  transforms.Resize(size=(256,256)),
+                                  transforms.Resize(size=(128,128)),
                                   transforms.Grayscale(1),
                                   transforms.ToTensor()
                                   # additional tasks
