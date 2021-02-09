@@ -157,7 +157,7 @@ class Gen(nn.Module):
       with torch.autograd.set_detect_anomaly(True):
         # attention map & output tensor
         att_map = torch.empty(self.step, self.batch_size, 1, 128, 128)
-        out = torch.empty(self.step , self.batch_size, 3, 128, 128)
+        out = torch.empty(self.step, self.batch_size, 3, 128, 128)
 
         # for N progressive steps
         for i in range(self.step):

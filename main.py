@@ -37,7 +37,7 @@ steps = 3   # Number of progressive step
 beta = 0.7  # weight for MSE loss of each step
 lamb = 0.7  # weight for Semi-Superviesd learning
 l_rate = 0.0002  # learning rate
-dis_steps = 120 # training Discriminator
+dis_steps = 0 # training Discriminator
 num_epoch = 5
 
 gen_net = AGAN.Gen(batch_size=batch_num, step_num=steps)
@@ -54,13 +54,14 @@ ADV = torch.nn.BCELoss()
 gen_optim = torch.optim.SGD(gen_net.parameters(), lr=l_rate, momentum=0.5)
 dis_optim = torch.optim.Adam(dis_net.parameters(), lr=l_rate)
 
-
+trained = 0
 """
 # Load model parameters
 if os.path.isfile('gen_net.pth'):
     gen_net.load_state_dict(torch.load('gen_net.pth'))
 if os.path.isfile('dis_net.pth'):
     dis_net.load_state_dict(torch.load('dis_net.pth'))
+    trained = 5
 """
 gen_net.train()
 dis_net.train()
@@ -83,9 +84,8 @@ for epoch in range(num_epoch):
 
         matt, free = gen_net(images)
 
-        break
-
         if i<dis_steps:
+            dis_optim.zero_grad()
             real_est = dis_net(frees)
             real_label = torch.ones(frees.shape[0],1)
             real_err = ADV(real_est, real_label)
@@ -98,7 +98,6 @@ for epoch in range(num_epoch):
 
             dis_err = real_err + fake_err
             dis_optim.step()
-            dis_optim.zero_grad()
 
             batch_err_a += dis_err
 
@@ -107,19 +106,27 @@ for epoch in range(num_epoch):
                       %(i+1, batch_err_a))
                 batch_err = 0.0
 
-
         else:
+            gen_optim.zero_grad()
             for n in range(steps):
                 det_loss += pow(beta, steps-n) * MSE(mattes, matt[n])
                 rem_loss += pow(beta, steps-n) * MSE(frees, free[n])
                 #rem_loss += MSE(VGG(frees), VGG(free[n]))
+
+            rem_loss.backward(retain_graph=True)
+            print("rem_loss backward()")
+
+            det_loss.backward(retain_graph=True)
+            print("det_loss backward")
+
             adv_loss = ADV(dis_net(free[steps-1]),
                            torch.ones(free[steps-1].shape[0],1))
+            adv_loss.backward()
+            print("adv_loss backward")
 
             total_loss = det_loss + rem_loss + adv_loss
-            total_loss.backward()
             gen_optim.step()
-            gen_optim.zero_grad()
+            print("params updated")
 
             batch_err_a += adv_loss
             batch_err_d += det_loss
@@ -136,9 +143,9 @@ for epoch in range(num_epoch):
 
     SAVE_PATH = 'C:/Users/BKL/Desktop/KU/4/Out/'
 
-    img_fname = SAVE_PATH + str(epoch) + "_img.jpg"
-    mat_fname = SAVE_PATH + str(epoch) + "_matt.jpg"
-    fre_fname = SAVE_PATH + str(epoch) + "_free.jpg"
+    img_fname = SAVE_PATH + str(epoch+trained) + "_img.jpg"
+    mat_fname = SAVE_PATH + str(epoch+trained) + "_matt.jpg"
+    fre_fname = SAVE_PATH + str(epoch+trained) + "_free.jpg"
 
     ff.save_batch(images, dprow, img_fname)
     ff.save_batch(matt[steps-1], dprow, mat_fname)

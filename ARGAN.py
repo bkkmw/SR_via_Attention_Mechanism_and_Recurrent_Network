@@ -1,120 +1,103 @@
+"""
+Class for ARGAN : LSTM layer included
+using ISTD dataset images(1330 triplets with 640 * 480)
+image size 128*128 used
+"""
+
 import torch
 import torch.nn as nn
 import torchvision
-import torchvision.transforms as transforms
-from Conv_LSTM import ConvLSTM as CLSTM
 
 
-#NETWORK_ GEN
-## Generator Net class
+# Generator Net class
+class ConvL(nn.Module):
+    def __init__(self, inp_ch, out_ch, k=None, s=None, p=None):
+        super(ConvL, self).__init__()
+        # (3, 1, 1) keep spatial resolution
+        if k is None:
+            k = 3
+            s = 1
+            p = 1
+        # default params
+        elif s is None:
+            s = 1
+        elif p is None:
+            p = 0
+        self.conv = nn.Sequential(nn.Conv2d(inp_ch, out_ch,
+                                            kernel_size=k, stride=s, padding=p),
+                                  nn.BatchNorm2d(out_ch),
+                                  nn.LeakyReLU())
 
-class Gen(nn.Module):
-    def __init__(self, batch_size=None):
-        super(Gen, self).__init__()
-        self.batch_size = batch_size
-        # shadow attention detector
-        self.det0 = nn.Sequential(nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.det1 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.det2 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.det3 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.det4 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.det5 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.det6 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.det7 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.det8 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.det9 = nn.Sequential(nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(64), nn.LeakyReLU())
-        #self.lstm = nn.LSTM(input_size=256*256, hidden_size=256)
-        self.lstm = CLSTM(input_dim=64, hidden_dim=[64,64,128], kernel_size=(3,3),
-                          num_layers=3, batch_first=True, bias=True, return_all_layers=False)
-        #self.lstm_c = nn.LSTMCell(input_size=64, hidden_size=64, )
-        # hidden layers for LSTM
-        self.hidden = self.init_h(batch_size)
+    def forward(self, x):
+        return self.conv(x)
 
-        self.att_map = nn.Sequential(nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1),
-                                     nn.Sigmoid())
 
-        #shadow removal encoder
+class DConvL(nn.Module):
+    def __init__(self, inp_ch, out_ch, k=None, s=None, p=None):
+        super(DConvL, self).__init__()
+        # (3, 1, 1) keep spatial resolution
+        if k is None:
+            k = 3
+            s = 1
+            p = 1
+        # default params
+        elif s is None:
+            s = 1
+        elif p is None:
+            p = 0
+        self.dconv = nn.Sequential(nn.ConvTranspose2d(inp_ch, out_ch,
+                                                      kernel_size=k, stride=s, padding=p),
+                                   nn.BatchNorm2d(out_ch),
+                                   nn.LeakyReLU())
+
+    def forward(self, x):
+        return self.dconv(x)
+
+
+class AttDet(nn.Module):
+    def __init__(self):
+        super(AttDet, self).__init__()
+        self.block = nn.Sequential(
+            ConvL(3, 8), ConvL(8, 8), ConvL(8, 16), ConvL(16, 16),
+            ConvL(16, 16),ConvL(16, 32), ConvL(32,32),
+            ConvL(32, 64), ConvL(64, 64), ConvL(64, 64)
+        )
+
+    def forward(self, inp):
+        return self.block(inp)
+
+
+class REncoder(nn.Module):
+    def __init__(self):
+        super(REncoder, self).__init__()
         # CONV LAYERS : extract feature
-        self.conv0 = nn.Sequential(nn.Conv2d(3,64, kernel_size=3, stride=2),
-                                   nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.conv1 = nn.Sequential(nn.Conv2d(64,128, kernel_size=3, stride=2),
-                                   nn.BatchNorm2d(128), nn.LeakyReLU())
-        self.conv2 = nn.Sequential(nn.Conv2d(128,256, kernel_size=3, stride=2),
-                                   nn.BatchNorm2d(256), nn.LeakyReLU())
-        self.conv3 = nn.Sequential(nn.Conv2d(256,512, kernel_size=3, stride=2),
-                                   nn.BatchNorm2d(512), nn.LeakyReLU())
-        self.conv4 = nn.Sequential(nn.Conv2d(512,512, kernel_size=3, stride=2),
-                                   nn.BatchNorm2d(512), nn.LeakyReLU())
-        self.conv5 = nn.Sequential(nn.Conv2d(512,512, kernel_size=3, stride=2),
-                                   nn.BatchNorm2d(512), nn.LeakyReLU())
-        self.conv6 = nn.Sequential(nn.Conv2d(512,512, kernel_size=3, stride=2),
-                                   nn.BatchNorm2d(512), nn.LeakyReLU())
-        self.conv7 = nn.Sequential(nn.Conv2d(512,512, kernel_size=3, stride=2),
-                                   nn.BatchNorm2d(512), nn.LeakyReLU())
+        self.conv0 = ConvL(3, 64, 3, 2, 3)
+        self.conv1 = ConvL(64, 128, 3, 2, 2)
+        self.conv2 = ConvL(128, 256, 3, 2, 2)
+        self.conv3 = ConvL(256, 512, 3, 2, 2)
+        self.conv4 = ConvL(512, 512, 3, 2, 2)
+        self.conv5 = ConvL(512, 512, 3, 2, 2)
+        self.conv6 = ConvL(512, 512, 3, 2, 2)
+        self.conv7 = ConvL(512, 512, 3, 2, 2)
 
         # DECONV LAYERS : generate image with feature data
-        self.dconv0 = nn.Sequential(nn.ConvTranspose2d(512,512, kernel_size=4, stride=2),
-                                    nn.BatchNorm2d(512), nn.LeakyReLU())
-        self.dconv1 = nn.Sequential(nn.ConvTranspose2d(512, 512, kernel_size=4, stride=2),
-                                    nn.BatchNorm2d(512), nn.LeakyReLU())
-        self.dconv2 = nn.Sequential(nn.ConvTranspose2d(512, 512, kernel_size=4, stride=2),
-                                    nn.BatchNorm2d(512), nn.LeakyReLU())
-        self.dconv3 = nn.Sequential(nn.ConvTranspose2d(512, 512, kernel_size=4, stride=2),
-                                    nn.BatchNorm2d(512), nn.LeakyReLU())
-        self.dconv4 = nn.Sequential(nn.ConvTranspose2d(512,256, kernel_size=4, stride=2),
-                                    nn.BatchNorm2d(256), nn.LeakyReLU())
-        self.dconv5 = nn.Sequential(nn.ConvTranspose2d(256,128, kernel_size=4, stride=2),
-                                    nn.BatchNorm2d(128), nn.LeakyReLU())
-        self.dconv6 = nn.Sequential(nn.ConvTranspose2d(128,64, kernel_size=4, stride=2),
-                                    nn.BatchNorm2d(64), nn.LeakyReLU())
-        self.dconv7 = nn.Sequential(nn.ConvTranspose2d(64,3, kernel_size=4, stride=2),
-                                    nn.BatchNorm2d(3), nn.LeakyReLU())
+        self.dconv0 = DConvL(512, 512, 3, 1, 1)
+        self.dconv1 = DConvL(512, 512, 4, 2, 2)
+        self.dconv2 = DConvL(512, 512, 4, 2, 2)
+        self.dconv3 = DConvL(512, 512, 4, 2, 2)
+        self.dconv4 = DConvL(512, 256, 4, 2, 2)
+        self.dconv5 = DConvL(256, 128, 4, 2, 2)
+        self.dconv6 = DConvL(128, 64, 4, 2, 2)
+        self.dconv7 = DConvL(64, 3, 4, 2, 3)
 
         # Convert to Neg residual
-        self.rem0 = nn.Sequential(nn.Conv2d(3,3, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(3), nn.LeakyReLU())
-        self.rem1 = nn.Sequential(nn.Conv2d(3,3, kernel_size=3, stride=1, padding=1),
-                                  nn.BatchNorm2d(3), nn.LeakyReLU())
-        self.rem2 = nn.Sequential(nn.Conv2d(3,1, kernel_size=3, stride=1, padding=1),
+        self.rem0 = ConvL(3, 3)
+        self.rem1 = ConvL(3, 3)
+        self.rem2 = nn.Sequential(nn.Conv2d(3,1, kernel_size=3,
+                                            stride=1, padding=1),
                                   nn.Sigmoid())
 
-    # init hidden layers of LSTM : all zeros
-    def init_h(self, batch_size):
-        return (torch.zeros(batch_size, 1, 64, 256),
-                torch.zeros(batch_size, 1, 64, 256))
-
-    def forward(self, inp, h):
-        # Attention detector
-        x = self.det0(inp)
-        x = self.det1(x)
-        x = self.det2(x)
-        x = self.det3(x)
-        x = self.det4(x)
-        x = self.det5(x)
-        x = self.det6(x)
-        x = self.det7(x)
-        x = self.det8(x)
-        x = self.det9(x)
-        # LSTM
-
-        #print(h.shape)
-        #print('feature size : ', x.view([self.batch_size,64,-1]).shape)
-#        x, self.hidden = self.lstm(x.view([self.batch_size,64,-1]), h)
-        x, self.hidden = self.lstm(x)
-        # Attention map
-        matt = self.att_map(x)
-
-        # Removal Encoder
+    def forward(self, x, att_map):
         x0 = self.conv0(x)
         x1 = self.conv1(x0)
         x2 = self.conv2(x1)
@@ -125,18 +108,139 @@ class Gen(nn.Module):
         x7 = self.conv7(x6)
 
         xx = self.dconv0(x7)
-        xx = self.dconv1(xx + x6)
-        xx = self.dconv2(xx + x5)
-        xx = self.dconv3(xx + x4)
-        xx = self.dconv4(xx + x3)
-        xx = self.dconv5(xx + x2)
-        xx = self.dconv6(xx + x1)
-        xx = self.dconv7(xx + x0)
+        xx += x6
+        xx = self.dconv1(xx)
+        xx += x5
+        xx = self.dconv2(xx)
+        xx += x4
+        xx = self.dconv3(xx)
+        xx += x3
+        xx = self.dconv4(xx)
+        xx += x2
+        xx = self.dconv5(xx)
+        xx += x1
+        xx = self.dconv6(xx)
+        xx += x0
+        xx = self.dconv7(xx)
 
         xx = self.rem0(xx)
         xx = self.rem1(xx)
         xx = self.rem2(xx)
 
-        out = xx*matt + inp
+        res = torch.matmul(xx, att_map)
+        out = res + x
+        return out
 
-        return matt, out, h
+
+# LSTM layer
+class ConvLSTM(nn.Module):
+    def __init__(self, inp_dim, hid_dim, out_dim=None):
+        super(ConvLSTM, self).__init__()
+        self.in_dim = inp_dim + hid_dim
+        self.hidden_dim = hid_dim
+        # Same output Channel as input Channel
+        if out_dim is None:
+            self.out_dim = inp_dim
+        else:
+            self.out_dim = out_dim
+        self.conv_i = nn.Conv2d(self.in_dim, self.out_dim, 3, 1, 1)
+        self.conv_f = nn.Conv2d(self.in_dim, self.out_dim, 3, 1, 1)
+        self.conv_c = nn.Conv2d(self.in_dim, self.out_dim, 3, 1, 1)
+        self.conv_o = nn.Conv2d(self.in_dim, self.out_dim, 3, 1, 1)
+        self.sig = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+
+    def forward(self, x, c_prev, h_prev):
+        # input X and hidden state H_prev
+        xh = torch.cat((x, h_prev), 1)
+        i = self.sig(self.conv_i(xh))
+        f = self.sig(self.conv_f(xh))
+        c = (f * c_prev) + (i * self.tanh(self.conv_c(xh)))
+        o = self.sig(self.conv_o(xh))
+        h = o * self.tanh(c)
+        # C_next : cell output, H_next : hidden state
+        return c, h
+
+    def init_hidden(self, batch_size, image_size):
+        height, width = image_size
+        return torch.zeros(batch_size, self.hidden_dim, height, width)
+
+
+# Generative Network
+class Gen(nn.Module):
+    def __init__(self, batch_size=None, step_num=None):
+        super(Gen, self).__init__()
+        self.batch_size = batch_size
+        self.step = step_num
+        # Attention Detector
+        self.attL = AttDet()
+        # Convolutional LSTM cell
+        self.lstm = ConvLSTM(inp_dim=64, hid_dim=64)
+        # init hidden state
+        self.hidden = self.lstm.init_hidden(self.batch_size, (128, 128))
+        # Attention Map
+        self.attM = nn.Sequential(
+                  nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1),
+                  nn.Sigmoid()
+        )
+        # Removal Encoder
+        self.remE = REncoder()
+
+    def forward(self, x):
+      in_batch = x.shape[0]
+      if in_batch != self.batch_size:
+        self.batch_size = in_batch
+
+      with torch.autograd.set_detect_anomaly(True):
+        # attention map & output tensor
+        att_map = torch.empty(self.step, self.batch_size, 1, 128, 128)
+        out = torch.empty(self.step, self.batch_size, 3, 128, 128)
+        lstm_out = torch.zeros(self.batch_size, 64, 128, 128)
+        # for N progressive steps
+        for i in range(self.step):
+            # attention detector
+            lstm_in = self.attL(x)
+            # LSTM Layer
+            lstm_out, self.hidden = self.lstm(lstm_in, lstm_out, self.hidden)
+            # Generate attention map
+            temp = self.attM(lstm_in)
+            # removal encoder
+            res = self.remE(x, temp)
+            # append to output
+            att_map[i] = temp
+            out[i] = res
+            x = res
+
+        # output to tensor
+        att_map = torch.FloatTensor(att_map)
+        out = torch.FloatTensor(out)
+
+        return att_map, out
+
+
+# Discriminator
+class Disc(nn.Module):
+    def __init__(self, batch_size=None):
+        super(Disc, self).__init__()
+        self.batch_size = batch_size
+        self.conv0 = ConvL(3, 64, 4, 2, 1)
+        self.conv1 = ConvL(64, 128, 4, 2, 1)
+        self.conv2 = ConvL(128, 256, 4, 2, 1)
+        self.conv3 = ConvL(256, 512, 4, 2, 1)
+        self.conv4 = ConvL(512, 256, 4, 2, 1)
+        self.fc = nn.Sequential(nn.Linear(256 * 16, 512),
+                                nn.Linear(512, 1),
+                                nn.Sigmoid())
+
+    def forward(self, inp):
+        with torch.autograd.set_detect_anomaly(True):
+            self.batch_size = inp.shape[0]
+            x = self.conv0(inp)
+            x = self.conv1(x)
+            x = self.conv2(x)
+            x = self.conv3(x)
+            x = self.conv4(x)
+            x = torch.flatten(x, 1)
+            out = self.fc(x)
+
+            return out
