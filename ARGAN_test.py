@@ -7,6 +7,7 @@ import def_func as ff
 import os
 import numpy as np
 from PIL import Image
+import vgg_perceptual_loss as VGGLoss
 
 
 # Directories
@@ -24,9 +25,7 @@ dprow = 2
 trainloader = data_loader.get_data('train', img_path, batch_num)
 dataiter = iter(trainloader)
 images, mattes, frees = dataiter.next()
-
-ttt = torchvision.utils.make_grid(images, nrow=dprow)
-print(ttt.shape)
+# visualize
 ff.imshow(torchvision.utils.make_grid(images, nrow=dprow))
 ff.imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
 ff.imshow(torchvision.utils.make_grid(frees, nrow=dprow))
@@ -35,22 +34,24 @@ ff.imshow(torchvision.utils.make_grid(frees, nrow=dprow))
 steps = 3   # Number of progressive step
 beta = 0.7  # weight for MSE loss of each step
 lamb = 0.7  # weight for Semi-Superviesd learning
-l_rate = 0.0002  # learning rate
-dis_steps = 0 # training Discriminator
+l_rate_d = 0.0002   # learning rate : Discriminator
+l_rate_g = 0.0005   # learning rate : Generator
 num_epoch = 5
 
 gen_net = ARGAN.Gen(batch_size=batch_num, step_num=steps)
 dis_net = ARGAN.Disc(batch_size=batch_num)
+
 # Model Summary
 #summary(gen_net, (3,128,128))
-summary(dis_net, (3,128,128))
+#summary(dis_net, (3,128,128))
+
 
 # Loss function
 MSE = torch.nn.MSELoss()
-#VGG = VGGPerceptualLoss()
+VGG = VGGLoss.VGGPerceptualLoss()
 ADV = torch.nn.BCELoss()
 # Optimizer
-gen_optim = torch.optim.SGD(gen_net.parameters(), lr=l_rate, momentum=0.5)
+gen_optim = torch.optim.SGD(gen_net.parameters(), lr=l_rate, momentum=0.9)
 dis_optim = torch.optim.Adam(dis_net.parameters(), lr=l_rate)
 
 trained = 0
@@ -65,74 +66,53 @@ if os.path.isfile('dis_net.pth'):
 gen_net.train()
 dis_net.train()
 
-
 for epoch in range(num_epoch):
-    print('===========%d epoch running==========' %(epoch+1))
-    batch_err_a = 0.0
-    batch_err_d = 0.0
-    batch_err_r = 0.0
+    print('=================%d epoch running==============' %(epoch+1))
 
     for i, datas in enumerate(trainloader):
         total_loss = 0.0
         det_loss = 0.0
+        det_err = 0.0
         rem_loss = 0.0
+        rem_err = 0.0
         adv_loss = 0.0
+        # load data
+        image, matte, free = datas
+        # Estimated Results
+        mattes, frees = gen_net(image)
 
-        images, mattes, frees = datas
+        # train Discriminator
+        dis_optim.zero_grad()
+        # real data
+        real_err = ADV(dis_net(free), torch.ones(free.shape[0], 1))
+        real_err.backward()
+        # fake data
+        fake_err = ADV(dis_net(frees[steps-1]),
+                               torch.zeros(frees[steps-1].shape[0], 1))
+        fake_err.backward()
 
-        matt, free = gen_net(images)
+        dis_err = real_err + fake_err
+        dis_optim.step()
 
-        if i<dis_steps:
-            dis_optim.zero_grad()
-            real_est = dis_net(frees)
-            real_label = torch.ones(frees.shape[0],1)
-            real_err = ADV(real_est, real_label)
-            real_err.backward()
+        # train Generator
+        gen_optim.zero_grad()
+        # for N steps
+        for n in range(steps):
+            # detector loss : MSE
+            det_loss += pow(beta, steps-n) * MSE(matte, mattes[n])
+            # removal loss : accuracy loss
+            rem_loss += pow(beta, steps-n) * MSE(free, frees[n])
+            # removal loss : perceptual loss
+            rem_loss += MSE(VGG(frees), VGG(free[n]))
 
-            fake_est = dis_net(free[steps-1])
-            fake_label = torch.zeros(free[steps-1].shape[0],1)
-            fake_err = ADV(fake_est, fake_label)
-            fake_err.backward()
+        # Adversarial loss
+        adv_loss = ADV(dis_net(frees[steps-1]),
+                       torch.ones(frees[steps-1].shape[0],1))
 
-            dis_err = real_err + fake_err
-            dis_optim.step()
+        total_loss = det_loss + rem_loss + adv_loss
+        total_loss.backward()
+        gen_optim.step()
 
-            batch_err_a += dis_err
-
-            if i % 10 ==9:
-                print("[%d batch]\ttotal loss : %f"
-                      %(i+1, batch_err_a))
-                batch_err = 0.0
-
-        else:
-            gen_optim.zero_grad()
-            for n in range(steps):
-                det_loss += pow(beta, steps-n) * MSE(mattes, matt[n])
-                rem_loss += pow(beta, steps-n) * MSE(frees, free[n])
-                #rem_loss += MSE(VGG(frees), VGG(free[n]))
-
-            rem_loss.backward(retain_graph=True)
-            print("rem_loss backward()")
-
-            det_loss.backward(retain_graph=True)
-            print("det_loss backward")
-
-            adv_loss = ADV(dis_net(free[steps-1]),
-                           torch.ones(free[steps-1].shape[0],1))
-            adv_loss.backward()
-            print("adv_loss backward")
-
-            total_loss = det_loss + rem_loss + adv_loss
-            gen_optim.step()
-            print("params updated")
-
-            batch_err_a += adv_loss
-            batch_err_d += det_loss
-            batch_err_r += rem_loss
-
-            if i % 10 == 9:
-                print("[%d batch]\tdet : %f, rem : %f, adv : %f"
-                      %(i+1, batch_err_d, batch_err_r, batch_err_a))
 
     # 1 epoch Finished
     torch.save(gen_net.state_dict(), 'gen_net.pth')

@@ -1,5 +1,5 @@
 """
-Class for ARGAN : LSTM layer included
+Class for ARGAN : with LSTM layer
 using ISTD dataset images(1330 triplets with 640 * 480)
 image size 128*128 used
 """
@@ -8,8 +8,10 @@ import torch
 import torch.nn as nn
 import torchvision
 
+# Generator Network
 
-# Generator Net class
+
+# Conv + BN + LReLU
 class ConvL(nn.Module):
     def __init__(self, inp_ch, out_ch, k=None, s=None, p=None):
         super(ConvL, self).__init__()
@@ -32,6 +34,7 @@ class ConvL(nn.Module):
         return self.conv(x)
 
 
+# ConvT + BN + LReLU
 class DConvL(nn.Module):
     def __init__(self, inp_ch, out_ch, k=None, s=None, p=None):
         super(DConvL, self).__init__()
@@ -54,6 +57,8 @@ class DConvL(nn.Module):
         return self.dconv(x)
 
 
+# Attention Detector : 10 (Conv + BN + LReLU) layers
+# Extract Feature
 class AttDet(nn.Module):
     def __init__(self):
         super(AttDet, self).__init__()
@@ -67,6 +72,7 @@ class AttDet(nn.Module):
         return self.block(inp)
 
 
+# Removal Encoder : 8 Conv + 8 DConv + 3Conv layers
 class REncoder(nn.Module):
     def __init__(self):
         super(REncoder, self).__init__()
@@ -98,6 +104,7 @@ class REncoder(nn.Module):
                                   nn.Sigmoid())
 
     def forward(self, x, att_map):
+        # Conv
         x0 = self.conv0(x)
         x1 = self.conv1(x0)
         x2 = self.conv2(x1)
@@ -106,7 +113,7 @@ class REncoder(nn.Module):
         x5 = self.conv5(x4)
         x6 = self.conv6(x5)
         x7 = self.conv7(x6)
-
+        # DConv with Skip Connection
         xx = self.dconv0(x7)
         xx += x6
         xx = self.dconv1(xx)
@@ -122,11 +129,11 @@ class REncoder(nn.Module):
         xx = self.dconv6(xx)
         xx += x0
         xx = self.dconv7(xx)
-
+        # Conv
         xx = self.rem0(xx)
         xx = self.rem1(xx)
         xx = self.rem2(xx)
-
+        # Residual : product with attention map
         res = torch.matmul(xx, att_map)
         out = res + x
         return out
@@ -186,12 +193,18 @@ class Gen(nn.Module):
         # Removal Encoder
         self.remE = REncoder()
 
-    def forward(self, x):
-      in_batch = x.shape[0]
-      if in_batch != self.batch_size:
-        self.batch_size = in_batch
+    def init_h(self):
+        self.hidden = self.lstm.init_hidden(self.batch_size, (128,128))
 
-      with torch.autograd.set_detect_anomaly(True):
+    def forward(self, x):
+        in_batch = x.shape[0]
+        if in_batch != self.batch_size:
+            self.batch_size = in_batch
+        # init hidden state for each forward
+        self.init_h();
+        self.hidden = self.lstm.init_hidden(self.batch_size, (128,128))
+
+
         # attention map & output tensor
         att_map = torch.empty(self.step, self.batch_size, 1, 128, 128)
         out = torch.empty(self.step, self.batch_size, 3, 128, 128)
@@ -228,19 +241,19 @@ class Disc(nn.Module):
         self.conv2 = ConvL(128, 256, 4, 2, 1)
         self.conv3 = ConvL(256, 512, 4, 2, 1)
         self.conv4 = ConvL(512, 256, 4, 2, 1)
-        self.fc = nn.Sequential(nn.Linear(256 * 16, 512),
-                                nn.Linear(512, 1),
+        self.fc = nn.Sequential(nn.Linear(256 * 16, 1),
                                 nn.Sigmoid())
 
     def forward(self, inp):
-        with torch.autograd.set_detect_anomaly(True):
-            self.batch_size = inp.shape[0]
-            x = self.conv0(inp)
-            x = self.conv1(x)
-            x = self.conv2(x)
-            x = self.conv3(x)
-            x = self.conv4(x)
-            x = torch.flatten(x, 1)
-            out = self.fc(x)
 
-            return out
+        self.batch_size = inp.shape[0]
+        x = self.conv0(inp)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = torch.flatten(x, 1)
+        out = self.fc(x)
+
+        return out
+

@@ -26,8 +26,6 @@ trainloader = data_loader.get_data('train', img_path, batch_num)
 dataiter = iter(trainloader)
 images, mattes, frees = dataiter.next()
 
-ttt = torchvision.utils.make_grid(images, nrow=dprow)
-print(ttt.shape)
 ff.imshow(torchvision.utils.make_grid(images, nrow=dprow))
 ff.imshow(torchvision.utils.make_grid(mattes, nrow=dprow))
 ff.imshow(torchvision.utils.make_grid(frees, nrow=dprow))
