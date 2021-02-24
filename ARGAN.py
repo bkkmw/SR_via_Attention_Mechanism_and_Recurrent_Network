@@ -10,6 +10,12 @@ import torchvision
 
 # Generator Network
 
+# if GPU available
+if torch.cuda.is_available():
+    device = "cuda:0"
+else:
+    device = "cpu"
+
 
 # Conv + BN + LReLU
 class ConvL(nn.Module):
@@ -134,7 +140,7 @@ class REncoder(nn.Module):
         xx = self.rem1(xx)
         xx = self.rem2(xx)
         # Residual : product with attention map
-        res = torch.matmul(xx, att_map)
+        res = xx * att_map
         out = res + x
         return out
 
@@ -204,11 +210,12 @@ class Gen(nn.Module):
         self.init_h();
         self.hidden = self.lstm.init_hidden(self.batch_size, (128,128))
 
-
         # attention map & output tensor
-        att_map = torch.empty(self.step, self.batch_size, 1, 128, 128)
-        out = torch.empty(self.step, self.batch_size, 3, 128, 128)
-        lstm_out = torch.zeros(self.batch_size, 64, 128, 128)
+        att_map = torch.empty(self.step, self.batch_size, 1, 128, 128).to(device)
+        out = torch.empty(self.step, self.batch_size, 3, 128, 128).to(device)
+        lstm_out = torch.zeros(self.batch_size, 64, 128, 128).to(device)
+        self.hidden = self.hidden.to(device)
+
         # for N progressive steps
         for i in range(self.step):
             # attention detector
@@ -256,4 +263,3 @@ class Disc(nn.Module):
         out = self.fc(x)
 
         return out
-

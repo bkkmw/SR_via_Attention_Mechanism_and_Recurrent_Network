@@ -27,6 +27,7 @@ class VGGPerceptualLoss(torch.nn.Module):
         self.resize = resize
 
     def forward(self, input, target):
+        # RGB channel image
         if input.shape[1] != 3:
             input = input.repeat(1, 3, 1, 1)
             target = target.repeat(1, 3, 1, 1)
@@ -41,5 +42,5 @@ class VGGPerceptualLoss(torch.nn.Module):
         for block in self.blocks:
             x = block(x)
             y = block(y)
-            loss += torch.nn.functional.l1_loss(x, y)
+            loss += torch.nn.functional.mse_loss(x, y)
         return loss
